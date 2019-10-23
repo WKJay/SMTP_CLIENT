@@ -8,7 +8,7 @@
 #define ADDRESS_TYPE_IP 1
 
 //smtp服务初始化
-void smtp_clinet_init(void);
+void smtp_client_init(void);
 //设置smtp服务器地址和端口
 int smtp_set_server_addr(const char *server_addr, uint8_t addr_type, const char *port);
 //设置smtp服务器的用户名密码

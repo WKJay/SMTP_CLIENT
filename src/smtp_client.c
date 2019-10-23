@@ -23,12 +23,12 @@
 smtp_session_t smtp_session;
 
 /**
- * Name:    smtp_clinet_init
+ * Name:    smtp_client_init
  * Brief:   初始化smtp客户端
  * Input:   None
  * Output:  None
  */
-void smtp_clinet_init(void)
+void smtp_client_init(void)
 {
     memset(&smtp_session, 0, sizeof(smtp_session_t));
 }

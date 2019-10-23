@@ -51,7 +51,7 @@ void smtp_thread(void *param)
     rt_thread_delay(10000);
 
     //初始化smtp客户端
-    smtp_clinet_init();
+    smtp_client_init();
     //设置服务器地址
     smtp_set_server_addr(SMTP_SERVER_ADDR, ADDRESS_TYPE_DOMAIN, SMTP_SERVER_PORT);
     //设置服务器认证信息

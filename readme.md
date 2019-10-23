@@ -48,7 +48,7 @@ RT-Thread online packages
 
  #### 使用步骤
 
- 1. 调用 `smtp_clinet_init` 函数初始化 smtp_client 客户端
+ 1. 调用 `smtp_client_init` 函数初始化 smtp_client 客户端
  2. 调用 `smtp_set_server_addr` 函数设置服务器的地址及端口
  3. 调用 `smtp_set_auth` 函数设置服务器认证信息
  4. 调用 `smtp_send_mail` 函数发送邮件
@@ -59,7 +59,7 @@ RT-Thread online packages
 
  ```C
 
- void smtp_clinet_init(void);
+ void smtp_client_init(void);
  
  ```
 
