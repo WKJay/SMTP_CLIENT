@@ -821,7 +821,7 @@ int smtp_delete_receiver(char *receiver_addr)
 
     while (smtp_address_to_delete)
     {
-        if (memcmp(smtp_address_to_delete, receiver_addr, strlen(receiver_addr)) == 0)
+        if (memcmp(smtp_address_to_delete->addr, receiver_addr, strlen(receiver_addr)) == 0)
         {
             //不存在上一个节点，则当前节点为第一个节点
             if (smtp_address_to_last == RT_NULL)
