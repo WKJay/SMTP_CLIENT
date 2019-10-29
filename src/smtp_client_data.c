@@ -47,7 +47,7 @@ smtp_base64_encode(char *target, uint32_t target_len, const char *source, uint32
 
     if (target_len < len)
     {
-        SMTP_LOG("[smtp]: X  target_len is too short\r\n");
+        LOG_E(">target_len is too short");
         return 0;
     }
 

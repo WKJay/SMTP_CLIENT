@@ -4,10 +4,15 @@
  File name:     smtp_client.c
  Description:   smtp源文件
  History:
- 1. Version:    
+ 1. Version:    V1.0.0
     Date:       2019-10-10
     Author:     wangjunjie
-    Modify:     
+    Modify:     新建
+
+ 2. Version:    V1.0.1
+    Date:       2019-10-28
+    Author:     wangjunjie
+    Modify:     增加多个收件人功能
 *************************************************/
 
 #include <stdint.h>
@@ -79,7 +84,7 @@ int smtp_set_server_addr(const char *server_addr, uint8_t addr_type, const char 
     }
     else
     {
-        SMTP_LOG("[smtp]: X  server addr is null!\r\n");
+        LOG_E(">server addr is null!");
         return -1;
     }
 
@@ -91,7 +96,7 @@ int smtp_set_server_addr(const char *server_addr, uint8_t addr_type, const char 
     {
         if (addr_len > 15)
         {
-            SMTP_LOG("[smtp]: X  server addr type error!\r\n");
+            LOG_E(">server addr type error!");
             return -1;
         }
         else
@@ -102,7 +107,7 @@ int smtp_set_server_addr(const char *server_addr, uint8_t addr_type, const char 
 
     if (strlen(port) <= 0)
     {
-        SMTP_LOG("[smtp]: X  server port is null!\r\n");
+        LOG_E(">server port is null!");
         return -1;
     }
     else
@@ -127,19 +132,28 @@ int smtp_set_auth(const char *username, const char *password)
 
     if (!(username_len && password_len))
     {
-        SMTP_LOG("[smtp]: X  username or password invalid!\r\n");
+        LOG_E(">username or password invalid!");
         return -1;
     }
 
+    //设置SMTP MAIL FROM属性，该属性必须与用户名一致
+    if (username_len > SMTP_MAX_ADDR_LEN)
+    {
+        LOG_E("sender address id too long");
+        return -1;
+    }
+    memset(smtp_session.address_from, 0, SMTP_MAX_ADDR_LEN);
+    memcpy(smtp_session.address_from, username, username_len);
+
     if (smtp_base64_encode(smtp_session.username, SMTP_MAX_AUTH_LEN * 2, username, username_len) == 0)
     {
-        SMTP_LOG("[smtp]: X  username encode error!\r\n");
+        LOG_E(">username encode error!");
         return -1;
     }
 
     if (smtp_base64_encode(smtp_session.password, SMTP_MAX_AUTH_LEN * 2, password, password_len) == 0)
     {
-        SMTP_LOG("[smtp]: X  password encode error!\r\n");
+        LOG_E(">password encode error!");
         return -1;
     }
 
@@ -165,7 +179,7 @@ static int smtp_connect_server_by_hostname(void)
 
     if (getaddrinfo(smtp_session.server_domain, smtp_session.server_port, &hints, &addr_list) != 0)
     {
-        SMTP_LOG("[smtp]: X  unknow server domain!\r\n");
+        LOG_E(">unknow server domain!");
         return -1;
     }
 
@@ -183,7 +197,7 @@ static int smtp_connect_server_by_hostname(void)
         {
             if (read(smtp_session.conn_fd, buf, 3) < 3)
             {
-                SMTP_LOG("[smtp]: X  smtp server connect fail\r\n");
+                LOG_E(">smtp server connect fail");
                 smtp_close_connection();
                 result = -1;
                 break;
@@ -192,21 +206,21 @@ static int smtp_connect_server_by_hostname(void)
             {
                 if (memcmp(buf, "220", 3) == 0)
                 {
-                    SMTP_LOG("\r\n[smtp]: O  smtp server connect success!\r\n");
-                    SMTP_LOG("[smtp]: O  smtp server domain -> %s!\r\n", smtp_session.server_domain);
+                    LOG_I(">smtp server connect success!");
+                    LOG_I(">smtp server domain -> %s!", smtp_session.server_domain);
                     result = 0;
                     break;
                 }
                 else
                 {
-                    SMTP_LOG("[smtp]: X  smtp connection response check fail\r\n");
+                    LOG_E(">smtp connection response check fail");
                     smtp_close_connection();
                     result = -1;
                     break;
                 }
             }
         }
-        SMTP_LOG("[smtp]: X  smtp server connect fail\r\n");
+        LOG_E(">smtp server connect fail");
         smtp_close_connection();
         result = -1;
     }
@@ -225,7 +239,7 @@ static int smtp_connect_server_by_ip(void)
 {
     int result = -1;
 
-    SMTP_LOG("[smtp]: X  current version don't support ip connect,please use server domain!\r\n");
+    LOG_E(">current version don't support ip connect,please use server domain!");
 
     return result;
 }
@@ -271,13 +285,13 @@ static int smtp_flush(void)
 #endif
         else
         {
-            SMTP_LOG("[smtp]: X  smtp flush port invalid \r\n");
+            LOG_E(">smtp flush port invalid");
             return -1;
         }
 
         if (result <= 0)
         {
-            SMTP_LOG("[smtp]: X  smtp net connection flush fail\r\n");
+            LOG_E(">smtp net connection flush fail");
             return -1;
         }
         return result;
@@ -380,7 +394,7 @@ static int smtp_connect_server(void)
         }
         else
         {
-            SMTP_LOG("[smtp]: X  cannot find ip and domain\r\n");
+            LOG_E(">cannot find ip and domain");
             return -1;
         }
     }
@@ -396,7 +410,7 @@ static int smtp_connect_server(void)
 #endif
     else
     {
-        SMTP_LOG("[smtp]: X  invalid port number!\r\n");
+        LOG_E(">invalid port number!");
         return -1;
     }
 }
@@ -421,7 +435,7 @@ static int smtp_send_data_with_response_check(char *buf, char *response_code)
     )
 #endif
     {
-        SMTP_LOG("[smtp]: X  cannot find net fd\r\n");
+        LOG_E(">cannot find net fd");
         return -1;
     }
     else
@@ -429,7 +443,7 @@ static int smtp_send_data_with_response_check(char *buf, char *response_code)
         smtp_flush();
         if (smtp_write(buf) != strlen(buf))
         {
-            SMTP_LOG("[smtp]: X  smtp send fail\r\n");
+            LOG_E(">smtp send fail");
             smtp_close_connection();
             return -1;
         }
@@ -437,13 +451,13 @@ static int smtp_send_data_with_response_check(char *buf, char *response_code)
         {
             if (smtp_read(response_code_buf, 3) < 3)
             {
-                SMTP_LOG("[smtp]: X  smtp read  response fail\r\n");
+                LOG_E(">smtp read  response fail");
                 smtp_close_connection();
                 return -1;
             }
             if (memcmp(response_code, response_code_buf, 3) != 0)
             {
-                SMTP_LOG("[smtp]: X  smtp check  response fail\r\n");
+                LOG_E(">smtp check  response fail");
                 smtp_close_connection();
                 return -1;
             }
@@ -467,7 +481,7 @@ static int smtp_handshake(void)
     result = smtp_send_data_with_response_check(SMTP_CMD_EHLO, "250");
     if (result != 0)
     {
-        SMTP_LOG("[smtp]: X  smtp helo fail\r\n");
+        LOG_E(">smtp helo fail");
         return -1;
     }
 
@@ -478,7 +492,7 @@ static int smtp_handshake(void)
         smtp_session.state = SMTP_START_TLS;
         if (smtp_send_data_with_response_check(SMTP_CMD_STARTTLS, "220") != 0)
         {
-            SMTP_LOG("[smtp]: X  smtp start tls fail\r\n");
+            LOG_E(">smtp start tls fail");
             smtp_close_connection();
             return -1;
         }
@@ -487,7 +501,7 @@ static int smtp_handshake(void)
 
         if (smtp_mbedtls_starttls(smtp_session.tls_session) != 0)
         {
-            SMTP_LOG("[smtp]: X  smtp start tls handshake fail\r\n");
+            LOG_E(">smtp start tls handshake fail");
             return -1;
         }
         return 0;
@@ -514,7 +528,7 @@ static int smtp_auth_login(void)
 #endif
     if (smtp_send_data_with_response_check(SMTP_CMD_AUTHLOGIN, "334") != 0)
     {
-        SMTP_LOG("[smtp]: X  smtp auth login fail\r\n");
+        LOG_E(">smtp auth login fail");
         smtp_close_connection();
         return -1;
     }
@@ -528,7 +542,7 @@ static int smtp_auth_login(void)
     sprintf(auth_info_buf, "%s\r\n", smtp_session.username);
     if (smtp_send_data_with_response_check(auth_info_buf, "334") != 0)
     {
-        SMTP_LOG("[smtp]: X  smtp send username fail\r\n");
+        LOG_E(">smtp send username fail");
         smtp_close_connection();
         return -1;
     }
@@ -536,7 +550,7 @@ static int smtp_auth_login(void)
     sprintf(auth_info_buf, "%s\r\n", smtp_session.password);
     if (smtp_send_data_with_response_check(auth_info_buf, "235") != 0)
     {
-        SMTP_LOG("[smtp]: X  smtp password invalid\r\n");
+        LOG_E(">smtp password invalid");
         smtp_close_connection();
         return -1;
     }
@@ -555,6 +569,7 @@ static int smtp_set_sender_receiver(void)
     uint16_t rcpt_buf_len = SMTP_MAX_ADDR_LEN + strlen(SMTP_CMD_RCPT_HEAD) + strlen(SMTP_CMD_RCPT_END);
     //使用较大的长度
     uint16_t buf_len = (mail_buf_len > rcpt_buf_len) ? mail_buf_len : rcpt_buf_len;
+    smtp_address_to_t *smtp_address_to_temp = smtp_session.address_to;
 
     char addr_info_buf[buf_len];
     memset(addr_info_buf, 0, buf_len);
@@ -562,18 +577,23 @@ static int smtp_set_sender_receiver(void)
     sprintf(addr_info_buf, "%s%s%s", SMTP_CMD_MAIL_HEAD, smtp_session.address_from, SMTP_CMD_MAIL_END);
     if (smtp_send_data_with_response_check(addr_info_buf, "250") != 0)
     {
-        SMTP_LOG("[smtp]: X  smtp set mail from fail\r\n");
+        LOG_E(">smtp set mail from fail");
         smtp_close_connection();
         return -1;
     }
 
-    sprintf(addr_info_buf, "%s%s%s", SMTP_CMD_RCPT_HEAD, smtp_session.address_to, SMTP_CMD_RCPT_END);
-    if (smtp_send_data_with_response_check(addr_info_buf, "250") != 0)
+    while (smtp_address_to_temp)
     {
-        SMTP_LOG("[smtp]: X  smtp set rcpt to fail\r\n");
-        smtp_close_connection();
-        return -1;
+        sprintf(addr_info_buf, "%s%s%s", SMTP_CMD_RCPT_HEAD, smtp_address_to_temp->addr, SMTP_CMD_RCPT_END);
+        if (smtp_send_data_with_response_check(addr_info_buf, "250") != 0)
+        {
+            LOG_E(">smtp set rcpt to fail");
+            smtp_close_connection();
+            return -1;
+        }
+        smtp_address_to_temp = smtp_address_to_temp->next;
     }
+
     return 0;
 }
 
@@ -590,17 +610,17 @@ static int smtp_send_content(void)
 
     if (smtp_send_data_with_response_check(SMTP_CMD_DATA, "354") != 0)
     {
-        SMTP_LOG("[smtp]: X  smtp send data cmd fail\r\n");
+        LOG_E(">smtp send data cmd fail");
         smtp_close_connection();
         return -1;
     }
     //拼接内容
     sprintf(content_buf, "FROM: <%s>\r\nTO: <%s>\r\nSUBJECT:%s\r\n\r\n%s\r\n.\r\n",
-            smtp_session.address_from, smtp_session.address_to, smtp_session.subject, smtp_session.body);
+            smtp_session.address_from, smtp_session.address_to->addr, smtp_session.subject, smtp_session.body);
 
     if (smtp_send_data_with_response_check(content_buf, "250") != 0)
     {
-        SMTP_LOG("[smtp]: X  smtp send data content fail\r\n");
+        LOG_E(">smtp send data content fail");
         smtp_close_connection();
         return -1;
     }
@@ -618,14 +638,14 @@ static int smtp_quit(void)
 {
     if (smtp_send_data_with_response_check(SMTP_CMD_QUIT, "221") != 0)
     {
-        SMTP_LOG("[smtp]: X  smtp quit fail\r\n");
+        LOG_E(">smtp quit fail");
         smtp_close_connection();
         return -1;
     }
-    SMTP_LOG("[smtp]: O  smtp mail send sussess!\r\n");
+    LOG_I(">smtp mail send sussess!");
     //关闭连接
     smtp_close_connection();
-    SMTP_LOG("[smtp]: O  close smtp connection!\r\n");
+    LOG_I(">close smtp connection!");
     return 0;
 }
 
@@ -681,37 +701,15 @@ static int smtp_send(void)
  * Name:    smtp_send_mail
  * Brief:   smtp邮件发送
  * Input:
- *  @from:     发送者邮箱
- *  @to:       接受者邮箱
  *  @subject:  主题
  *  @body:     内容
  * Output:  成功0，失败-1
  */
-int smtp_send_mail(char *from, char *to, char *subject, char *body)
+int smtp_send_mail(char *subject, char *body)
 {
-    if (strlen(from) > SMTP_MAX_ADDR_LEN)
-    {
-        SMTP_LOG("[smtp]: X  sender address is too long!\r\n");
-        return -1;
-    }
-    else
-    {
-        smtp_session.address_from = from;
-    }
-
-    if (strlen(to) > SMTP_MAX_ADDR_LEN)
-    {
-        SMTP_LOG("[smtp]: X  receiver address is too long!\r\n");
-        return -1;
-    }
-    else
-    {
-        smtp_session.address_to = to;
-    }
-
     if (subject == NULL)
     {
-        SMTP_LOG("[smtp]: X subject is null!\r\n");
+        LOG_E(">subject is null!");
         return -1;
     }
     else
@@ -721,7 +719,7 @@ int smtp_send_mail(char *from, char *to, char *subject, char *body)
 
     if (body == NULL)
     {
-        SMTP_LOG("[smtp]: X body is null!\r\n");
+        LOG_E(">body is null!");
         return -1;
     }
     else
@@ -731,4 +729,128 @@ int smtp_send_mail(char *from, char *to, char *subject, char *body)
 
     //调用真实的发送函数
     return smtp_send();
+}
+
+/**
+ * Name:    smtp_add_receiver
+ * Brief:   增加收件人
+ * Input:
+ *  @receiver_addr: 收件人地址
+ * Output:  成功返回0，失败返回-1
+ */
+int smtp_add_receiver(char *receiver_addr)
+{
+    smtp_address_to_t *smtp_address_to_temp = RT_NULL;
+    //用于释放问题节点
+    smtp_address_to_t *smtp_address_to_free_temp = RT_NULL;
+
+    if (receiver_addr == RT_NULL)
+    {
+        LOG_E("receiver addr is null");
+        return -1;
+    }
+
+    if (smtp_session.address_to == RT_NULL)
+    {
+        smtp_session.address_to = rt_malloc(sizeof(smtp_address_to_t));
+        if (smtp_session.address_to == RT_NULL)
+        {
+            LOG_E("smtp receiver address node allocate fail");
+            return -1;
+        }
+        memset(smtp_session.address_to, 0, sizeof(smtp_address_to_t));
+        smtp_address_to_temp = smtp_session.address_to;
+    }
+    else
+    {
+        smtp_address_to_temp = smtp_session.address_to;
+        while (smtp_address_to_temp->next != RT_NULL)
+        {
+            smtp_address_to_temp = smtp_address_to_temp->next;
+        }
+        smtp_address_to_temp->next = rt_malloc(sizeof(smtp_address_to_t));
+        smtp_address_to_temp = smtp_address_to_temp->next;
+        if (smtp_address_to_temp == RT_NULL)
+        {
+            LOG_E("smtp receiver address node allocate fail");
+            return -1;
+        }
+        memset(smtp_address_to_temp, 0, sizeof(smtp_address_to_t));
+    }
+
+    //新建一个收件人地址存储区
+    smtp_address_to_temp->addr = rt_malloc(strlen(receiver_addr) + 1);
+    if (smtp_address_to_temp->addr == RT_NULL)
+    {
+        LOG_E("smtp receiver address string allocate fail");
+        LOG_W("start to free address node");
+        //找出需要释放节点的上一个节点，并将其next指向空
+        smtp_address_to_free_temp = smtp_session.address_to;
+        while(smtp_address_to_free_temp->next != smtp_address_to_temp)
+        {
+            smtp_address_to_free_temp = smtp_address_to_free_temp->next;
+        }
+        smtp_address_to_free_temp->next = RT_NULL;
+        //释放问题节点
+        rt_free(smtp_address_to_temp);
+        LOG_I("address node free success!");
+        
+        return -1;
+    }
+    memset(smtp_address_to_temp->addr, 0, strlen(receiver_addr) + 1);
+    memcpy(smtp_address_to_temp->addr, receiver_addr, strlen(receiver_addr));
+    return 0;
+}
+
+/**
+ * Name:    smtp_delete_receiver
+ * Brief:   删除某个收件人
+ * Input:
+ *  @receiver_addr: 收件人地址
+ * Output:  成功返回0，失败返回-1
+ */
+int smtp_delete_receiver(char *receiver_addr)
+{
+    //上一个节点指针
+    smtp_address_to_t *smtp_address_to_last = RT_NULL;
+    //待删除节点指针
+    smtp_address_to_t *smtp_address_to_delete = RT_NULL;
+
+    //将待删除指针指向收件人链表头结点
+    smtp_address_to_delete = smtp_session.address_to;
+
+    while (smtp_address_to_delete)
+    {
+        if (memcmp(smtp_address_to_delete, receiver_addr, strlen(receiver_addr)) == 0)
+        {
+            //不存在上一个节点，则当前节点为第一个节点
+            if (smtp_address_to_last == RT_NULL)
+            {
+                //若有下一个节点则第一个节点指向待删除的下一个节点，若没有则为空
+                smtp_session.address_to = smtp_address_to_delete->next;
+                //释放内存
+                rt_free(smtp_address_to_delete->addr);
+                rt_free(smtp_address_to_delete);
+
+                return 0;
+            }
+            else
+            {
+                //若有下一个节点则第一个节点指向待删除的下一个节点，若没有则为空
+                smtp_address_to_last->next = smtp_address_to_delete->next;
+                //释放内存
+                rt_free(smtp_address_to_delete->addr);
+                rt_free(smtp_address_to_delete);
+
+                return 0;
+            }
+        }
+        else
+        {
+            smtp_address_to_last = smtp_address_to_delete;
+            smtp_address_to_delete = smtp_address_to_delete->next;
+        }
+    }
+    LOG_W("smtp delete receiver fail, cannot find receiver : %s", receiver_addr);
+    return -1;
 }

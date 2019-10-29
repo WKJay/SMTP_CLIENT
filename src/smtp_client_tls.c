@@ -37,7 +37,7 @@ static MbedTLSSession *smtp_mbedtls_context_create(smtp_session_t *smtp_session)
     tls_session = (MbedTLSSession *)tls_malloc(sizeof(MbedTLSSession));
     if (tls_session == RT_NULL)
     {
-        SMTP_LOG("[smtp]: X  No memory for MbedTLS session object.\r\n");
+        LOG_E(">No memory for MbedTLS session object");
         return NULL;
     }
     rt_memset(tls_session, 0x0, sizeof(MbedTLSSession));
@@ -53,7 +53,7 @@ static MbedTLSSession *smtp_mbedtls_context_create(smtp_session_t *smtp_session)
     }
     else
     {
-        SMTP_LOG("[smtp]: X  cannot find server ip or domain\r\n");
+        LOG_E(">cannot find server ip or domain");
         tls_free(tls_session);
         return NULL;
     }
@@ -64,7 +64,7 @@ static MbedTLSSession *smtp_mbedtls_context_create(smtp_session_t *smtp_session)
     }
     else
     {
-        SMTP_LOG("[smtp]: X  cannot find server port\r\n");
+        LOG_E(">cannot find server port");
         if (tls_session->host)
         {
             tls_free(tls_session->host);
@@ -78,7 +78,7 @@ static MbedTLSSession *smtp_mbedtls_context_create(smtp_session_t *smtp_session)
     memset(tls_session->buffer, 0, MBEDTLS_READ_BUFFER_LEN);
     if (tls_session->buffer == RT_NULL)
     {
-        SMTP_LOG("[smtp]: X  no memory for MbedTLS buffer\r\n");
+        LOG_E(">no memory for MbedTLS buffer");
         if (tls_session->host)
         {
             tls_free(tls_session->host);
@@ -108,9 +108,9 @@ static int smtp_mbedtls_client_init(MbedTLSSession *tls_session)
 
     if ((result = mbedtls_client_init(tls_session, (void *)pers, strlen(pers))) != 0)
     {
-        SMTP_LOG("[smtp]: X  MbedTLSClientInit err return : -0x%x\n", -result);
+        LOG_E(">MbedTLSClientInit err return : -0x%x", -result);
         mbedtls_client_close(tls_session);
-        SMTP_LOG("[smtp]: O  MbedTLS connection close\n");
+        LOG_I(">MbedTLS connection close");
         return -1;
     }
     return result;
@@ -128,9 +128,9 @@ static int smtp_mbedtls_client_context(MbedTLSSession *tls_session)
     int result = -1;
     if ((result = mbedtls_client_context(tls_session)) < 0)
     {
-        SMTP_LOG("[smtp]: X  MbedTLSCLlientContext  err return : -0x%x\n", -result);
+        LOG_E(">MbedTLSCLlientContext  err return : -0x%x", -result);
         mbedtls_client_close(tls_session);
-        SMTP_LOG("[smtp]: O  MbedTLS connection close\n");
+        LOG_I(">MbedTLS connection close");
         return -1;
     }
     return result;
@@ -148,9 +148,9 @@ static int smtp_mbedtls_client_connect(MbedTLSSession *tls_session)
     int result = -1;
     if ((result = mbedtls_client_connect(tls_session)) != 0)
     {
-        SMTP_LOG("[smtp]: X  MbedTLSCLlientConnect   err return : -0x%x\n", -result);
+        LOG_E(">MbedTLSCLlientConnect   err return : -0x%x", -result);
         mbedtls_client_close(tls_session);
-        SMTP_LOG("[smtp]: O  MbedTLS connection close\n");
+        LOG_I(">MbedTLS connection close");
         return -1;
     }
     return result;
@@ -171,7 +171,7 @@ int smtp_mbedtls_client_write(MbedTLSSession *tls_session, char *buf)
     {
         if (result != MBEDTLS_ERR_SSL_WANT_READ && result != MBEDTLS_ERR_SSL_WANT_WRITE)
         {
-            SMTP_LOG("[smtp]: X  mbedtls_ssl_write  err return : -0x%x\n", -result);
+            LOG_E(">mbedtls_ssl_write  err return : -0x%x", -result);
             return -1;
         }
     }
@@ -192,11 +192,11 @@ int smtp_mbedtls_client_read(MbedTLSSession *tls_session, char *buf, size_t len)
     result = mbedtls_client_read(tls_session, (unsigned char *)buf, len);
     if (result < 0)
     {
-        SMTP_LOG("[smtp]: X  mbedtls_ssl_read returned -0x%x\n", -result);
+        LOG_E(">mbedtls_ssl_read returned -0x%x", -result);
     }
     if (result == 0)
     {
-        SMTP_LOG("[smtp]: X  connection closed\n");
+        LOG_E(">connection closed");
     }
     return result;
 }
@@ -218,9 +218,9 @@ int smtp_mbedtls_starttls(MbedTLSSession *tls_session)
     {
         if (result != MBEDTLS_ERR_SSL_WANT_READ && result != MBEDTLS_ERR_SSL_WANT_WRITE)
         {
-            SMTP_LOG("[smtp]: X  smtp mbedtls handshake fail\n");
+            LOG_E(">smtp mbedtls handshake fail");
             mbedtls_client_close(tls_session);
-            SMTP_LOG("[smtp]: O  MbedTLS connection close\n");
+            LOG_I(">MbedTLS connection close");
             return -1;
         }
     }
@@ -230,9 +230,9 @@ int smtp_mbedtls_starttls(MbedTLSSession *tls_session)
     {
         memset(tls_session->buffer, 0x00, tls_session->buffer_len);
         mbedtls_x509_crt_verify_info((char *)tls_session->buffer, tls_session->buffer_len, "  ! ", result);
-        SMTP_LOG("[smtp]: X  smtp mbedtls crt verify fail\n");
+        LOG_E(">smtp mbedtls crt verify fail");
         mbedtls_client_close(tls_session);
-        SMTP_LOG("[smtp]: O  MbedTLS connection close\n");
+        LOG_I(">MbedTLS connection close");
         return -1;
     }
     return result;
@@ -308,7 +308,7 @@ int smtp_connect_server_by_starttls(void)
 
     if (result != 0)
     {
-        SMTP_LOG("[smtp]: X  smtp mbedtls net connect fail\n");
+        LOG_E(">smtp mbedtls net connect fail");
         mbedtls_client_close(smtp_session.tls_session);
     }
     smtp_session.conn_fd = smtp_session.tls_session->server_fd.fd;
@@ -333,7 +333,7 @@ int smtp_mbedtls_close_connection(void)
         }
         else
         {
-            SMTP_LOG("[smtp]: X  smtp tls session free fail!\r\n");
+            LOG_E(">smtp tls session free fail!");
         }
         return result;
     }

@@ -14,5 +14,9 @@ int smtp_set_server_addr(const char *server_addr, uint8_t addr_type, const char 
 //设置smtp服务器的用户名密码
 int smtp_set_auth(const char *username, const char *password);
 //发送邮件
-int smtp_send_mail(char *from, char *to, char *subject, char *body);
+int smtp_send_mail(char *subject, char *body);
+//增加收件人
+int smtp_add_receiver(char *receiver_addr);
+//删除指定收件人
+int smtp_delete_receiver(char *receiver_addr);
 #endif /* __SMTP_H */

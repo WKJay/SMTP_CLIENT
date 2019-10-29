@@ -3,11 +3,14 @@
 #include <stdint.h>
 #include <rtthread.h>
 
+//调试配置
 #ifdef SMTP_CLIENT_ENABLE_DEBUG_LOG
-#define SMTP_LOG rt_kprintf
-#else
-#define SMTP_LOG(...)
+#define DBG_ENABLE
+#define DBG_LEVEL 3
+#define DBG_COLOR
+#define DBG_SECTION_NAME "SMTP"
 #endif
+#include "rtdbg.h"
 
 #ifdef SMTP_CLIENT_USING_TLS
 #include <tls_certificate.h>
@@ -42,6 +45,13 @@ enum smtp_session_state
     SMTP_CLOSED
 };
 
+//smtp收件人链表
+typedef struct _smtp_address_to
+{
+    char *addr;
+    struct _smtp_address_to *next;
+} smtp_address_to_t;
+
 //smtp 会话结构
 typedef struct
 {
@@ -60,9 +70,9 @@ typedef struct
     //密码(有些邮箱服务器需要的是用户凭据)
     char password[SMTP_MAX_AUTH_LEN * 2];
     //邮件源地址
-    char *address_from;
+    char address_from[SMTP_MAX_ADDR_LEN];
     //邮件目的地址
-    char *address_to;
+    smtp_address_to_t *address_to;
     //邮件主题
     char *subject;
     //邮件内容
