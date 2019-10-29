@@ -1,26 +1,4 @@
-# SMTP_CLIENT 
-
-#### 最新版 V1.0.1
-
-`该版本属于最新测试版，拥有新增功能，对于新功能有需求的开发者可以选用最新版，最新版不能保证新功能的稳定性，若在使用过程中出现问题请联系该软件包的维护者或在GITHUB中提交ISSUE。谢谢支持`
-
-**本版本部分api在使用时与上一个版本有区别，若使用之前的版本，请参照下方对应使用说明**
-
-|版本|连接|
-|---|---|
-|V1.0.0|[点我查看](doc/readme_V1.0.0.md)|
-
-##### 新增功能
-
-1. 支持设置多个收件人
-2. 支持删除指定收件人
-
-##### API变更
-
-1. 新版中需要调用 `smtp_add_receiver` 函数添加邮件的收件人，当使用多个收件人时只需多次调用该函数即可。
-2. 新版中 `smtp_send_mail` 函数去掉了发送者邮箱地址与接收者邮箱地址两个参数。发送者邮箱地址必须与服务器用户名相同，在设置服务器用户名后系统自动设置，接收者邮箱通过 `smtp_add_receiver` 进行设置。
-
-------------------------------------------------------------------
+# SMTP_CLIENT V1.0.0
 
 ## 简介
 
@@ -73,8 +51,7 @@ RT-Thread online packages
  1. 调用 `smtp_client_init` 函数初始化 smtp_client 客户端
  2. 调用 `smtp_set_server_addr` 函数设置服务器的地址及端口
  3. 调用 `smtp_set_auth` 函数设置服务器认证信息
- 4. 调用 `smtp_add_receiver` 函数添加收件人地址
- 5. 调用 `smtp_send_mail` 函数发送邮件
+ 4. 调用 `smtp_send_mail` 函数发送邮件
 
  #### API详解
 
@@ -129,54 +106,18 @@ int smtp_set_auth(const char *username, const char *password);
 
 该函数用于设置 smtp 服务器的认证信息，需要注意有些服务器需要用 **凭据** 而非用户登录邮箱时的密码进行认证，用户在连接服务器时需要确认自己所用服务器的认证方式。
 
-##### 4、添加收件人
+##### 4、发送邮件
 
 ```C
 
-int smtp_add_receiver(char *receiver_addr);
+int smtp_send_mail(char *from, char *to, char *subject, char *body);
 
 ```
 
 |参数|说明|
 |---|---|
-|receiver_addr|收件人邮箱地址|
-
-|返回值|说明|
-|----|----|
-|0|添加成功|
-|-1|添加失败|
-
-在邮件发送前需要调用该函数添加收件人，若需要将邮件发送给多个收件人，则仅需多次调用该函数并传入不同的参数即可。
-
-##### 5、删除收件人
-
-```C
-
-int smtp_delete_receiver(char *receiver_addr);
-
-```
-
-|参数|说明|
-|---|---|
-|receiver_addr|收件人邮箱地址|
-
-|返回值|说明|
-|----|----|
-|0|删除成功|
-|-1|删除失败|
-
-若当前有多个收件人的情况下想要删除某个特定的收件人，仅需调用该接口并传入待删除的收件人邮箱即可。
-
-##### 6、发送邮件
-
-```C
-
-int smtp_send_mail(char *subject, char *body);
-
-```
-
-|参数|说明|
-|---|---|
+|from|发送者邮箱地址|
+|to|接收者邮箱地址|
 |subject|主题|
 |body|内容|
 
@@ -185,7 +126,7 @@ int smtp_send_mail(char *subject, char *body);
 |0|发送成功|
 |-1|发送失败|
 
-该函数为邮件发送函数，在用户设置好服务器的连接参数后，可以直接调用该函数进行邮件的发送。
+该函数为邮件发送函数，在用户设置好服务器的连接参数后，可以直接调用该函数进行邮件的发送。需要注意的是，发送者邮箱地址必须和登录用户名相同。
 
  #### 宏配置说明
 
@@ -201,108 +142,6 @@ int smtp_send_mail(char *subject, char *body);
 |SMTP_RESPONSE_MAX_LEN|服务器响应数据最大长度|
 
 一般情况下，用户需要根据自己内容的大小对 `SMTP_SEND_DATA_MAX_LEN` 进行配置即可。
-
-#### 使用例程
-
-```C
-
-/*************************************************
- Copyright (c) 2019
- All rights reserved.
- File name:     smtp_client_example.c
- Description:   smtp发送邮件示例邮件
- History:
- 1. Version:    V1.0.0
-    Date:       2019-10-14
-    Author:     wangjunjie
-    Modify:     
-2. Version:     V1.0.1
-    Date:       2019-10-14
-    Author:     wangjunjie
-    Modify:     添加多收件人功能
-*************************************************/
-#include "smtp_client.h"
-#include "rtthread.h"
-
-//若使用TLS加密则需要更大的堆栈空间
-#ifdef SMTP_CLIENT_USING_TLS
-#define SMTP_CLIENT_THREAD_STACK_SIZE 4096
-#else
-#define SMTP_CLIENT_THREAD_STACK_SIZE 2048
-#endif
-
-/*
- *邮件信息相关宏定义
- */
-//smtp 服务器域名
-#define SMTP_SERVER_ADDR "smtp.qq.com"
-//smtp 服务器端口号
-#define SMTP_SERVER_PORT "25"
-//smtp 登录用户名
-#define SMTP_USERNAME    ""
-//smtp 登录密码（或凭证）
-#define SMTP_PASSWORD    ""
-//邮件主题
-#define SMTP_SUBJECT     "SMTP TEST"
-
-
-//邮件内容
-char *content = "THIS IS SMTP TEST\r\n"
-                "HELLO SMTP\r\n"
-                "--------------------------------------\r\n"
-                "based on --->   RT-Thread\r\n"
-                "based on ---> SMTP_CLIENT\r\n";
-                
-void smtp_thread(void *param)
-{
-    //手动延时等待网络初始化成功
-    rt_thread_delay(10000);
-
-    //初始化smtp客户端
-    smtp_client_init();
-    //设置服务器地址
-    smtp_set_server_addr(SMTP_SERVER_ADDR, ADDRESS_TYPE_DOMAIN, SMTP_SERVER_PORT);
-    //设置服务器认证信息
-    smtp_set_auth(SMTP_USERNAME, SMTP_PASSWORD);
-    
-    //添加收件人1
-    smtp_add_receiver("abc@test.com");
-    //添加收件人2
-    smtp_add_receiver("def@test.com");
-    //添加收件人3
-    smtp_add_receiver("hij@test.com");
-    //删除收件人2
-    smtp_delete_receiver("def@test.com");
-
-    //发送邮件
-    rt_kprintf("\r\n[smtp]: O > start to send mail\r\n");
-    if (smtp_send_mail(SMTP_SUBJECT, content) == 0)
-    {
-        //发送成功
-        rt_kprintf("\r\n[smtp]: O > send mail success!\r\n");
-    }
-    else
-    {
-        //发送失败
-        rt_kprintf("\r\n[smtp]: X > send mail fail!\r\n");
-    }
-}
-
-int smtp_thread_entry(void)
-{
-    rt_thread_t smtp_client_tid;
-    //创建邮件发送线程（如果选择在主函数中直接调用邮件发送函数，需要注意主函数堆栈大小，必要时调大）
-    smtp_client_tid = rt_thread_create("smtp", smtp_thread, RT_NULL, SMTP_CLIENT_THREAD_STACK_SIZE, 20, 5);
-    if (smtp_client_tid != RT_NULL)
-    {
-        rt_thread_startup(smtp_client_tid);
-    }
-    return RT_EOK;
-}
-INIT_APP_EXPORT(smtp_thread_entry);
-
-
-```
 
 ## 联系方式&感谢
 

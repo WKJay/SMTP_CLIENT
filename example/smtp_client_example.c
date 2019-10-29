@@ -4,10 +4,14 @@
  File name:     smtp_client_example.c
  Description:   smtp发送邮件示例邮件
  History:
- 1. Version:    
+ 1. Version:    V1.0.0
     Date:       2019-10-14
     Author:     wangjunjie
     Modify:     
+2. Version:     V1.0.1
+    Date:       2019-10-14
+    Author:     wangjunjie
+    Modify:     添加多收件人功能
 *************************************************/
 #include "smtp_client.h"
 #include "rtthread.h"
@@ -30,10 +34,6 @@
 #define SMTP_USERNAME    ""
 //smtp 登录密码（或凭证）
 #define SMTP_PASSWORD    ""
-//smtp 邮件发送方（必须为登录用户名）
-#define SMTP_MAIL_FROM   SMTP_USERNAME
-//smtp 邮件接收方
-#define SMTP_RCPT_TO     ""
 //邮件主题
 #define SMTP_SUBJECT     "SMTP TEST"
 
@@ -56,10 +56,19 @@ void smtp_thread(void *param)
     smtp_set_server_addr(SMTP_SERVER_ADDR, ADDRESS_TYPE_DOMAIN, SMTP_SERVER_PORT);
     //设置服务器认证信息
     smtp_set_auth(SMTP_USERNAME, SMTP_PASSWORD);
+    
+    //添加收件人1
+    smtp_add_receiver("abc@test.com");
+    //添加收件人2
+    smtp_add_receiver("def@test.com");
+    //添加收件人3
+    smtp_add_receiver("hij@test.com");
+    //删除收件人2
+    smtp_delete_receiver("def@test.com");
 
     //发送邮件
     rt_kprintf("\r\n[smtp]: O > start to send mail\r\n");
-    if (smtp_send_mail(SMTP_MAIL_FROM, SMTP_RCPT_TO, SMTP_SUBJECT, content) == 0)
+    if (smtp_send_mail(SMTP_SUBJECT, content) == 0)
     {
         //发送成功
         rt_kprintf("\r\n[smtp]: O > send mail success!\r\n");
