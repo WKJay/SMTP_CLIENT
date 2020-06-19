@@ -27,6 +27,82 @@
 
 smtp_session_t smtp_session;
 
+#ifdef SMTP_CLIENT_USING_ATTACHMENT
+/**
+ * Name:    smtp_add_attachment
+ * Brief:   添加附件
+ * Input:   
+ *  @file_path: 文件路径
+ *  @file_name: 文件名
+ * Output:  成功:0 , 失败:-1
+ */
+int smtp_add_attachment(char *file_path, char *file_name)
+{
+    if (strlen(file_path) > SMTP_MAX_FILE_PATH_LEN)
+    {
+        LOG_E("attachment's file path too large");
+        return -1;
+    }
+
+    if (strlen(file_name) > SMTP_ATTACHMENT_MAX_NAME_LEN)
+    {
+        LOG_E("attachment's file name too large");
+        return -1;
+    }
+
+    if (!smtp_session.attachments)
+    {
+        smtp_session.attachments = rt_malloc(sizeof(smtp_attachments_t));
+        if (smtp_session.attachments)
+        {
+            rt_memset(smtp_session.attachments, 0, sizeof(smtp_attachments_t));
+            rt_memcpy(smtp_session.attachments->file_path, file_path, strlen(file_path));
+            rt_memcpy(smtp_session.attachments->file_name, file_name, strlen(file_name));
+        }
+        else
+        {
+            LOG_E("attachment memory allocate failed");
+            return -1;
+        }
+    }
+    else
+    {
+        smtp_attachments_t *cur_att = smtp_session.attachments;
+        while (cur_att->next)
+        {
+            cur_att = cur_att->next;
+        }
+        cur_att->next = rt_malloc(sizeof(smtp_attachments_t));
+        if (cur_att->next)
+        {
+            rt_memset(cur_att->next, 0, sizeof(smtp_attachments_t));
+            rt_memcpy(cur_att->next->file_path, file_path, strlen(file_path));
+            rt_memcpy(cur_att->next->file_name, file_name, strlen(file_name));
+        }
+        else
+        {
+            LOG_E("attachment memory allocate failed");
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+//清除所有附件
+static void smtp_clear_attachments(void)
+{
+    smtp_attachments_t *cur_attr, *next_attr;
+    for (cur_attr = smtp_session.attachments; cur_attr; cur_attr = next_attr)
+    {
+        next_attr = cur_attr->next;
+        LOG_D("delete attachment:%s", cur_attr->file_path);
+        rt_free(cur_attr);
+    }
+    smtp_session.attachments = NULL;
+}
+#endif
+
 /**
  * Name:    smtp_client_init
  * Brief:   初始化smtp客户端
@@ -90,7 +166,11 @@ int smtp_set_server_addr(const char *server_addr, uint8_t addr_type, const char 
 
     if (addr_type == ADDRESS_TYPE_DOMAIN)
     {
-        smtp_session.server_domain = server_addr;
+        if (smtp_session.server_domain)
+        {
+            rt_free(smtp_session.server_domain);
+        }
+        smtp_session.server_domain = rt_strdup(server_addr);
     }
     else
     {
@@ -101,7 +181,11 @@ int smtp_set_server_addr(const char *server_addr, uint8_t addr_type, const char 
         }
         else
         {
-            smtp_session.server_ip = server_addr;
+            if (smtp_session.server_ip)
+            {
+                rt_free(smtp_session.server_ip);
+            }
+            smtp_session.server_ip = rt_strdup(server_addr);
         }
     }
 
@@ -112,7 +196,11 @@ int smtp_set_server_addr(const char *server_addr, uint8_t addr_type, const char 
     }
     else
     {
-        smtp_session.server_port = port;
+        if (smtp_session.server_port)
+        {
+            rt_free(smtp_session.server_port);
+        }
+        smtp_session.server_port = rt_strdup(port);
     }
     return 0;
 }
@@ -143,6 +231,9 @@ int smtp_set_auth(const char *username, const char *password)
         return -1;
     }
     memset(smtp_session.address_from, 0, SMTP_MAX_ADDR_LEN);
+    memset(smtp_session.username, 0, sizeof(smtp_session.username));
+    memset(smtp_session.password, 0, sizeof(smtp_session.password));
+
     memcpy(smtp_session.address_from, username, username_len);
 
     if (smtp_base64_encode(smtp_session.username, SMTP_MAX_AUTH_LEN * 2, username, username_len) == 0)
@@ -303,29 +394,30 @@ static int smtp_flush(void)
  * Brief:   根据不同的状态调用对应的write
  * Input:
  *  @buf:   要写入的数据
+ *  @len:   写入长度
  * Output:  成功写入的个数，错误返回-1
  */
-static int smtp_write(char *buf)
+static int smtp_write(uint8_t *buf, uint32_t len)
 {
     int server_port_num = atoi(smtp_session.server_port);
     if (server_port_num == 25)
     {
-        return write(smtp_session.conn_fd, buf, strlen(buf));
+        return write(smtp_session.conn_fd, buf, len);
     }
 #ifdef SMTP_CLIENT_USING_TLS
     else if (server_port_num == 465)
     {
-        return smtp_mbedtls_client_write(smtp_session.tls_session, buf);
+        return smtp_mbedtls_client_write(smtp_session.tls_session, buf, len);
     }
     else if (server_port_num == 587)
     {
         if (smtp_session.state < SMTP_FINISH_START_TLS)
         {
-            return write(smtp_session.conn_fd, buf, strlen(buf));
+            return write(smtp_session.conn_fd, buf, len);
         }
         else
         {
-            return smtp_mbedtls_client_write(smtp_session.tls_session, buf);
+            return smtp_mbedtls_client_write(smtp_session.tls_session, buf, len);
         }
     }
 #endif
@@ -441,7 +533,7 @@ static int smtp_send_data_with_response_check(char *buf, char *response_code)
     else
     {
         smtp_flush();
-        if (smtp_write(buf) != strlen(buf))
+        if (smtp_write((uint8_t *)buf, strlen(buf)) != strlen(buf))
         {
             LOG_E(">smtp send fail");
             smtp_close_connection();
@@ -599,6 +691,46 @@ static int smtp_set_sender_receiver(void)
 
 /**
  * Name:    smtp_send_content
+ * Brief:   smtp发送附件
+ * Input:   None
+ * Output:  None
+ */
+static void smtp_send_attachment(void)
+{
+    uint8_t attachment_buf[SMTP_SEND_DATA_MAX_LEN];
+    smtp_attachments_t *cur_attr = smtp_session.attachments;
+    while (cur_attr)
+    {
+        FILE *fp = fopen(cur_attr->file_path, "r");
+        if (fp)
+        {
+            uint32_t read_size = 0;
+            //发送附件头
+            rt_memset(attachment_buf, 0, sizeof(attachment_buf));
+            sprintf((char *)attachment_buf,
+                    "--mail_boundry\r\nContent-Type: text/plain; name=\"%s\"\r\nContent-Transfer-Encoding: binary\r\nContent-Disposition: attachment; filename=\"%s\"\r\n\r\n",
+                    cur_attr->file_name, cur_attr->file_name);
+            smtp_write(attachment_buf, strlen((char *)attachment_buf));
+
+            //发送附件数据
+            rt_memset(attachment_buf, 0, sizeof(attachment_buf));
+            read_size = fread(attachment_buf, 1, sizeof(attachment_buf), fp);
+            while (read_size == sizeof(attachment_buf))
+            {
+                smtp_write(attachment_buf, read_size);
+                read_size = fread(attachment_buf, 1, sizeof(attachment_buf), fp);
+                rt_thread_mdelay(1);
+            }
+            smtp_write(attachment_buf, read_size);
+            smtp_write("\r\n\r\n", strlen("\r\n\r\n"));
+            fclose(fp);
+        }
+        cur_attr = cur_attr->next;
+    }
+}
+
+/**
+ * Name:    smtp_send_content
  * Brief:   smtp发送邮件内容
  * Input:   None
  * Output:  发送成功0，发送失败-1
@@ -615,10 +747,30 @@ static int smtp_send_content(void)
         return -1;
     }
     //拼接内容
-    sprintf(content_buf, "FROM: <%s>\r\nTO: <%s>\r\nSUBJECT:%s\r\n\r\n%s\r\n.\r\n",
-            smtp_session.address_from, smtp_session.address_to->addr, smtp_session.subject, smtp_session.body);
 
-    if (smtp_send_data_with_response_check(content_buf, "250") != 0)
+#ifdef SMTP_CLIENT_USING_ATTACHMENT
+    if (smtp_session.attachments)
+    {
+        sprintf(content_buf, "FROM:<%s>\r\nTO:<%s>\r\nSUBJECT:%s\r\nContent-Type: multipart/mixed; boundary=\"mail_boundry\"\r\n\r\n--mail_boundry\r\nContent-Type: text/plain; charset=\"utf-8\"\r\nContent-Transfer-Encoding: 7bit\r\n\r\n%s\r\n\r\n",
+                smtp_session.address_from, smtp_session.address_to->addr, smtp_session.subject, smtp_session.body);
+    }
+    else
+    {
+        sprintf(content_buf, "FROM: <%s>\r\nTO: <%s>\r\nSUBJECT:%s\r\n\r\n%s\r\n\r\n",
+                smtp_session.address_from, smtp_session.address_to->addr, smtp_session.subject, smtp_session.body);
+    }
+
+#else
+    sprintf(content_buf, "FROM: <%s>\r\nTO: <%s>\r\nSUBJECT:%s\r\n\r\n%s\r\n\r\n",
+            smtp_session.address_from, smtp_session.address_to->addr, smtp_session.subject, smtp_session.body);
+#endif
+    smtp_write((uint8_t *)content_buf, strlen(content_buf));
+
+#ifdef SMTP_CLIENT_USING_ATTACHMENT
+    smtp_send_attachment();
+    smtp_clear_attachments();
+#endif
+    if (smtp_send_data_with_response_check(SMTP_CMD_BODY_FINISHED, "250") != 0)
     {
         LOG_E(">smtp send data content fail");
         smtp_close_connection();
@@ -786,7 +938,7 @@ int smtp_add_receiver(char *receiver_addr)
         LOG_W("start to free address node");
         //找出需要释放节点的上一个节点，并将其next指向空
         smtp_address_to_free_temp = smtp_session.address_to;
-        while(smtp_address_to_free_temp->next != smtp_address_to_temp)
+        while (smtp_address_to_free_temp->next != smtp_address_to_temp)
         {
             smtp_address_to_free_temp = smtp_address_to_free_temp->next;
         }
@@ -794,12 +946,33 @@ int smtp_add_receiver(char *receiver_addr)
         //释放问题节点
         rt_free(smtp_address_to_temp);
         LOG_I("address node free success!");
-        
+
         return -1;
     }
     memset(smtp_address_to_temp->addr, 0, strlen(receiver_addr) + 1);
     memcpy(smtp_address_to_temp->addr, receiver_addr, strlen(receiver_addr));
     return 0;
+}
+
+/**
+ * Name:    smtp_clear_receiver
+ * Brief:   删除所有收件人
+ * Input:   None
+ * Output:  None
+ */
+void smtp_clear_receiver(void)
+{
+    //上一个节点指针
+    smtp_address_to_t *cur_receiver, *next_receiver;
+
+    for (cur_receiver = smtp_session.address_to; cur_receiver; cur_receiver = next_receiver)
+    {
+        next_receiver = cur_receiver->next;
+        LOG_D("delete receiver:%s", cur_receiver->addr);
+        rt_free(cur_receiver->addr);
+        rt_free(cur_receiver);
+    }
+    smtp_session.address_to = NULL;
 }
 
 /**

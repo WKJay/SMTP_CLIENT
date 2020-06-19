@@ -162,12 +162,13 @@ static int smtp_mbedtls_client_connect(MbedTLSSession *tls_session)
  * Input:
  *  @smtp_session:  smtp会话
  *  @buf:           写入的字符串
+ *  @len:           写入长度
  * Output:  成功写入的字符个数，失败返回-1或0并关闭tls连接
  */
-int smtp_mbedtls_client_write(MbedTLSSession *tls_session, char *buf)
+int smtp_mbedtls_client_write(MbedTLSSession *tls_session, uint8_t *buf, uint32_t len)
 {
     int result = -1;
-    while ((result = mbedtls_client_write(tls_session, (const unsigned char *)buf, strlen(buf))) <= 0)
+    while ((result = mbedtls_client_write(tls_session, (const unsigned char *)buf, len)) <= 0)
     {
         if (result != MBEDTLS_ERR_SSL_WANT_READ && result != MBEDTLS_ERR_SSL_WANT_WRITE)
         {

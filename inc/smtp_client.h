@@ -1,6 +1,7 @@
 #ifndef __SMTP_H
 #define __SMTP_H
 #include <stdint.h>
+#include <rtconfig.h>
 
 //域名类型
 #define ADDRESS_TYPE_DOMAIN 0
@@ -19,4 +20,13 @@ int smtp_send_mail(char *subject, char *body);
 int smtp_add_receiver(char *receiver_addr);
 //删除指定收件人
 int smtp_delete_receiver(char *receiver_addr);
+//删除所有收件人
+void smtp_clear_receiver(void);
+
+#ifdef SMTP_CLIENT_USING_ATTACHMENT
+//添加附件
+int smtp_add_attachment(char *file_path, char *file_name);
+
+#endif
+
 #endif /* __SMTP_H */
