@@ -12,6 +12,11 @@
     Date:       2019-10-14
     Author:     wangjunjie
     Modify:     添加多收件人功能
+    
+3. Version:    V1.0.2
+    Date:       2020-06-22
+    Author:     WKJay
+    Modify:     增加附件功能
 *************************************************/
 #include "smtp_client.h"
 #include "rtthread.h"
@@ -22,6 +27,12 @@
 #else
 #define SMTP_CLIENT_THREAD_STACK_SIZE 4096
 #endif
+
+#define DBG_ENABLE
+#define DBG_LEVEL 3
+#define DBG_COLOR
+#define DBG_SECTION_NAME "SMTP_EXAMPLE"
+#include "rtdbg.h"
 
 /*
  *邮件信息相关宏定义
@@ -44,34 +55,47 @@ char *content = "THIS IS SMTP TEST\r\n"
                 "based on --->   RT-Thread\r\n"
                 "based on ---> SMTP_CLIENT\r\n";
 
+uint8_t send_enable = 0;
+
 void smtp_thread(void *param)
 {
-    //手动延时等待网络初始化成功
-    rt_thread_delay(10000);
-
     //初始化smtp客户端
     smtp_client_init();
     //设置服务器地址
     smtp_set_server_addr(SMTP_SERVER_ADDR, ADDRESS_TYPE_DOMAIN, SMTP_SERVER_PORT);
     //设置服务器认证信息
     smtp_set_auth(SMTP_USERNAME, SMTP_PASSWORD);
-
     //添加收件人1
-    smtp_add_receiver("roraxef370@royandk.com");
+    smtp_add_receiver("66666@sharklasers.com");
 
-    smtp_add_attachment("/a.txt", "a.txt");
-    smtp_add_attachment("/b.txt", "b.txt");
-    //发送邮件
-    rt_kprintf("\r\n[smtp]: O > start to send mail\r\n");
-    if (smtp_send_mail(SMTP_SUBJECT, content) == 0)
+    while (1)
     {
-        //发送成功
-        rt_kprintf("\r\n[smtp]: O > send mail success!\r\n");
-    }
-    else
-    {
-        //发送失败
-        rt_kprintf("\r\n[smtp]: X > send mail fail!\r\n");
+        if (send_enable)
+        {
+            smtp_add_attachment("/a.txt", "a.txt");
+            smtp_add_attachment("/b.txt", "b.txt");
+            //发送邮件
+            LOG_D("start to send mail");
+            if (smtp_send_mail(SMTP_SUBJECT, content) == 0)
+            {
+                //发送成功
+                LOG_I("send mail success!");
+            }
+            else
+            {
+                //发送失败
+                LOG_E("send mail fail!");
+            }
+            //清除附件
+            smtp_clear_attachments();
+            //防止频繁发送
+            rt_thread_mdelay(30000);
+            send_enable = 0;
+        }
+        else
+        {
+            rt_thread_mdelay(500);
+        }
     }
 }
 
@@ -87,3 +111,11 @@ int smtp_thread_entry(void)
     return RT_EOK;
 }
 INIT_APP_EXPORT(smtp_thread_entry);
+
+int smtp_test(uint8_t argc, char *argv[])
+{
+    send_enable = 1;
+    return 0;
+}
+MSH_CMD_EXPORT(smtp_test, smtp test);
+

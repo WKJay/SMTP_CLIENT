@@ -26,6 +26,8 @@ void smtp_clear_receiver(void);
 #ifdef SMTP_CLIENT_USING_ATTACHMENT
 //添加附件
 int smtp_add_attachment(char *file_path, char *file_name);
+//清空附件
+void smtp_clear_attachments(void);
 
 #endif
 

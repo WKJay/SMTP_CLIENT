@@ -26,7 +26,7 @@
 #define SMTP_MAX_FILE_PATH_LEN 64
 #define SMTP_ATTACHMENT_MAX_NAME_LEN 32
 #define SMTP_SEND_CMD_MAX_LEN 100
-#define SMTP_SEND_DATA_HEAD_MAX_LENGTH 128
+#define SMTP_SEND_DATA_HEAD_MAX_LENGTH 256
 #define SMTP_SEND_DATA_MAX_LEN 512
 #define SMTP_RESPONSE_MAX_LEN 512
 
@@ -111,6 +111,7 @@ extern smtp_session_t smtp_session;
 #define SMTP_RESP_354 "354"
 #define SMTP_RESP_LOGIN_UNAME "VXNlcm5hbWU6"
 #define SMTP_RESP_LOGIN_PASS "UGFzc3dvcmQ6"
+#define SMTP_MAIL_BOUNDARY "smtp_client_boundary"
 
 #define SMTP_CMD_EHLO "EHLO DM11\r\n"
 #define SMTP_CMD_AUTHLOGIN "AUTH LOGIN\r\n"

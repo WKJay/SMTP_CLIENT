@@ -6,13 +6,18 @@
  History:
  1. Version:    V1.0.0
     Date:       2019-10-10
-    Author:     wangjunjie
+    Author:     WKJay
     Modify:     新建
 
  2. Version:    V1.0.1
     Date:       2019-10-28
-    Author:     wangjunjie
+    Author:     WKJay
     Modify:     增加多个收件人功能
+    
+ 3. Version:    V1.0.2
+    Date:       2020-06-22
+    Author:     WKJay
+    Modify:     增加附件功能
 *************************************************/
 
 #include <stdint.h>
@@ -38,6 +43,7 @@ smtp_session_t smtp_session;
  */
 int smtp_add_attachment(char *file_path, char *file_name)
 {
+    FILE *fp =  NULL;
     if (strlen(file_path) > SMTP_MAX_FILE_PATH_LEN)
     {
         LOG_E("attachment's file path too large");
@@ -49,6 +55,14 @@ int smtp_add_attachment(char *file_path, char *file_name)
         LOG_E("attachment's file name too large");
         return -1;
     }
+
+    fp = fopen(file_path, "r");
+    if (fp == NULL)
+    {
+        LOG_E("cannot open file %s", file_path);
+        return -1;
+    }
+    fclose(fp);
 
     if (!smtp_session.attachments)
     {
@@ -90,7 +104,7 @@ int smtp_add_attachment(char *file_path, char *file_name)
 }
 
 //清除所有附件
-static void smtp_clear_attachments(void)
+void smtp_clear_attachments(void)
 {
     smtp_attachments_t *cur_attr, *next_attr;
     for (cur_attr = smtp_session.attachments; cur_attr; cur_attr = next_attr)
@@ -160,7 +174,7 @@ int smtp_set_server_addr(const char *server_addr, uint8_t addr_type, const char 
     }
     else
     {
-        LOG_E(">server addr is null!");
+        LOG_E("server addr is null!");
         return -1;
     }
 
@@ -176,7 +190,7 @@ int smtp_set_server_addr(const char *server_addr, uint8_t addr_type, const char 
     {
         if (addr_len > 15)
         {
-            LOG_E(">server addr type error!");
+            LOG_E("server addr type error!");
             return -1;
         }
         else
@@ -191,7 +205,7 @@ int smtp_set_server_addr(const char *server_addr, uint8_t addr_type, const char 
 
     if (strlen(port) <= 0)
     {
-        LOG_E(">server port is null!");
+        LOG_E("server port is null!");
         return -1;
     }
     else
@@ -220,7 +234,7 @@ int smtp_set_auth(const char *username, const char *password)
 
     if (!(username_len && password_len))
     {
-        LOG_E(">username or password invalid!");
+        LOG_E("username or password invalid!");
         return -1;
     }
 
@@ -238,13 +252,13 @@ int smtp_set_auth(const char *username, const char *password)
 
     if (smtp_base64_encode(smtp_session.username, SMTP_MAX_AUTH_LEN * 2, username, username_len) == 0)
     {
-        LOG_E(">username encode error!");
+        LOG_E("username encode error!");
         return -1;
     }
 
     if (smtp_base64_encode(smtp_session.password, SMTP_MAX_AUTH_LEN * 2, password, password_len) == 0)
     {
-        LOG_E(">password encode error!");
+        LOG_E("password encode error!");
         return -1;
     }
 
@@ -270,7 +284,7 @@ static int smtp_connect_server_by_hostname(void)
 
     if (getaddrinfo(smtp_session.server_domain, smtp_session.server_port, &hints, &addr_list) != 0)
     {
-        LOG_E(">unknow server domain!");
+        LOG_E("unknow server domain!");
         return -1;
     }
 
@@ -288,7 +302,7 @@ static int smtp_connect_server_by_hostname(void)
         {
             if (read(smtp_session.conn_fd, buf, 3) < 3)
             {
-                LOG_E(">smtp server connect fail");
+                LOG_E("smtp server connect fail");
                 smtp_close_connection();
                 result = -1;
                 break;
@@ -297,21 +311,21 @@ static int smtp_connect_server_by_hostname(void)
             {
                 if (memcmp(buf, "220", 3) == 0)
                 {
-                    LOG_I(">smtp server connect success!");
-                    LOG_I(">smtp server domain -> %s!", smtp_session.server_domain);
+                    LOG_I("smtp server connect success!");
+                    LOG_I("smtp server domain -> %s!", smtp_session.server_domain);
                     result = 0;
                     break;
                 }
                 else
                 {
-                    LOG_E(">smtp connection response check fail");
+                    LOG_E("smtp connection response check fail");
                     smtp_close_connection();
                     result = -1;
                     break;
                 }
             }
         }
-        LOG_E(">smtp server connect fail");
+        LOG_E("smtp server connect fail");
         smtp_close_connection();
         result = -1;
     }
@@ -330,7 +344,7 @@ static int smtp_connect_server_by_ip(void)
 {
     int result = -1;
 
-    LOG_E(">current version don't support ip connect,please use server domain!");
+    LOG_E("current version don't support ip connect,please use server domain!");
 
     return result;
 }
@@ -376,13 +390,13 @@ static int smtp_flush(void)
 #endif
         else
         {
-            LOG_E(">smtp flush port invalid");
+            LOG_E("smtp flush port invalid");
             return -1;
         }
 
         if (result <= 0)
         {
-            LOG_E(">smtp net connection flush fail");
+            LOG_E("smtp net connection flush fail");
             return -1;
         }
         return result;
@@ -486,7 +500,7 @@ static int smtp_connect_server(void)
         }
         else
         {
-            LOG_E(">cannot find ip and domain");
+            LOG_E("cannot find ip and domain");
             return -1;
         }
     }
@@ -502,7 +516,7 @@ static int smtp_connect_server(void)
 #endif
     else
     {
-        LOG_E(">invalid port number!");
+        LOG_E("invalid port number!");
         return -1;
     }
 }
@@ -527,7 +541,7 @@ static int smtp_send_data_with_response_check(char *buf, char *response_code)
     )
 #endif
     {
-        LOG_E(">cannot find net fd");
+        LOG_E("cannot find net fd");
         return -1;
     }
     else
@@ -535,7 +549,7 @@ static int smtp_send_data_with_response_check(char *buf, char *response_code)
         smtp_flush();
         if (smtp_write((uint8_t *)buf, strlen(buf)) != strlen(buf))
         {
-            LOG_E(">smtp send fail");
+            LOG_E("smtp send fail");
             smtp_close_connection();
             return -1;
         }
@@ -543,13 +557,13 @@ static int smtp_send_data_with_response_check(char *buf, char *response_code)
         {
             if (smtp_read(response_code_buf, 3) < 3)
             {
-                LOG_E(">smtp read  response fail");
+                LOG_E("smtp read  response fail");
                 smtp_close_connection();
                 return -1;
             }
             if (memcmp(response_code, response_code_buf, 3) != 0)
             {
-                LOG_E(">smtp check  response fail");
+                LOG_E("smtp check  response fail");
                 smtp_close_connection();
                 return -1;
             }
@@ -573,7 +587,7 @@ static int smtp_handshake(void)
     result = smtp_send_data_with_response_check(SMTP_CMD_EHLO, "250");
     if (result != 0)
     {
-        LOG_E(">smtp helo fail");
+        LOG_E("smtp helo fail");
         return -1;
     }
 
@@ -584,7 +598,7 @@ static int smtp_handshake(void)
         smtp_session.state = SMTP_START_TLS;
         if (smtp_send_data_with_response_check(SMTP_CMD_STARTTLS, "220") != 0)
         {
-            LOG_E(">smtp start tls fail");
+            LOG_E("smtp start tls fail");
             smtp_close_connection();
             return -1;
         }
@@ -593,7 +607,7 @@ static int smtp_handshake(void)
 
         if (smtp_mbedtls_starttls(smtp_session.tls_session) != 0)
         {
-            LOG_E(">smtp start tls handshake fail");
+            LOG_E("smtp start tls handshake fail");
             return -1;
         }
         return 0;
@@ -620,7 +634,7 @@ static int smtp_auth_login(void)
 #endif
     if (smtp_send_data_with_response_check(SMTP_CMD_AUTHLOGIN, "334") != 0)
     {
-        LOG_E(">smtp auth login fail");
+        LOG_E("smtp auth login fail");
         smtp_close_connection();
         return -1;
     }
@@ -634,7 +648,7 @@ static int smtp_auth_login(void)
     sprintf(auth_info_buf, "%s\r\n", smtp_session.username);
     if (smtp_send_data_with_response_check(auth_info_buf, "334") != 0)
     {
-        LOG_E(">smtp send username fail");
+        LOG_E("smtp send username fail");
         smtp_close_connection();
         return -1;
     }
@@ -642,7 +656,7 @@ static int smtp_auth_login(void)
     sprintf(auth_info_buf, "%s\r\n", smtp_session.password);
     if (smtp_send_data_with_response_check(auth_info_buf, "235") != 0)
     {
-        LOG_E(">smtp password invalid");
+        LOG_E("smtp password invalid");
         smtp_close_connection();
         return -1;
     }
@@ -669,7 +683,7 @@ static int smtp_set_sender_receiver(void)
     sprintf(addr_info_buf, "%s%s%s", SMTP_CMD_MAIL_HEAD, smtp_session.address_from, SMTP_CMD_MAIL_END);
     if (smtp_send_data_with_response_check(addr_info_buf, "250") != 0)
     {
-        LOG_E(">smtp set mail from fail");
+        LOG_E("smtp set mail from fail");
         smtp_close_connection();
         return -1;
     }
@@ -679,7 +693,7 @@ static int smtp_set_sender_receiver(void)
         sprintf(addr_info_buf, "%s%s%s", SMTP_CMD_RCPT_HEAD, smtp_address_to_temp->addr, SMTP_CMD_RCPT_END);
         if (smtp_send_data_with_response_check(addr_info_buf, "250") != 0)
         {
-            LOG_E(">smtp set rcpt to fail");
+            LOG_E("smtp set rcpt to fail");
             smtp_close_connection();
             return -1;
         }
@@ -708,7 +722,10 @@ static void smtp_send_attachment(void)
             //发送附件头
             rt_memset(attachment_buf, 0, sizeof(attachment_buf));
             sprintf((char *)attachment_buf,
-                    "--mail_boundry\r\nContent-Type: text/plain; name=\"%s\"\r\nContent-Transfer-Encoding: binary\r\nContent-Disposition: attachment; filename=\"%s\"\r\n\r\n",
+                    "--" SMTP_MAIL_BOUNDARY "\r\n"
+                    "Content-Type: text/plain; name=\"%s\"\r\n"
+                    "Content-Transfer-Encoding: binary\r\n"
+                    "Content-Disposition: attachment; filename=\"%s\"\r\n\r\n",
                     cur_attr->file_name, cur_attr->file_name);
             smtp_write(attachment_buf, strlen((char *)attachment_buf));
 
@@ -722,11 +739,16 @@ static void smtp_send_attachment(void)
                 rt_thread_mdelay(1);
             }
             smtp_write(attachment_buf, read_size);
-            smtp_write("\r\n\r\n", strlen("\r\n\r\n"));
+            smtp_write((uint8_t *)"\r\n\r\n", strlen("\r\n\r\n"));
             fclose(fp);
+        }
+        else
+        {
+            LOG_E("add attachment %s failed,path: %s", cur_attr->file_name, cur_attr->file_path);
         }
         cur_attr = cur_attr->next;
     }
+    smtp_write((uint8_t *)("--" SMTP_MAIL_BOUNDARY "--\r\n"), strlen("--" SMTP_MAIL_BOUNDARY "--\r\n"));
 }
 
 /**
@@ -742,7 +764,7 @@ static int smtp_send_content(void)
 
     if (smtp_send_data_with_response_check(SMTP_CMD_DATA, "354") != 0)
     {
-        LOG_E(">smtp send data cmd fail");
+        LOG_E("smtp send data cmd fail");
         smtp_close_connection();
         return -1;
     }
@@ -751,28 +773,45 @@ static int smtp_send_content(void)
 #ifdef SMTP_CLIENT_USING_ATTACHMENT
     if (smtp_session.attachments)
     {
-        sprintf(content_buf, "FROM:<%s>\r\nTO:<%s>\r\nSUBJECT:%s\r\nContent-Type: multipart/mixed; boundary=\"mail_boundry\"\r\n\r\n--mail_boundry\r\nContent-Type: text/plain; charset=\"utf-8\"\r\nContent-Transfer-Encoding: 7bit\r\n\r\n%s\r\n\r\n",
+        sprintf(content_buf,
+                "FROM:<%s>\r\n"
+                "TO:<%s>\r\n"
+                "SUBJECT:%s\r\n"
+                "Content-Type: multipart/mixed;"
+                "boundary=\"smtp_client_boundary\"\r\n\r\n"
+                "--" SMTP_MAIL_BOUNDARY "\r\n"
+                "Content-Type: text/plain; charset=\"utf-8\"\r\n"
+                "Content-Transfer-Encoding: 7bit\r\n\r\n"
+                "%s\r\n\r\n",
                 smtp_session.address_from, smtp_session.address_to->addr, smtp_session.subject, smtp_session.body);
     }
     else
     {
-        sprintf(content_buf, "FROM: <%s>\r\nTO: <%s>\r\nSUBJECT:%s\r\n\r\n%s\r\n\r\n",
+        sprintf(content_buf,
+                "FROM: <%s>\r\n"
+                "TO: <%s>\r\n"
+                "SUBJECT:%s\r\n\r\n"
+                "%s\r\n\r\n",
                 smtp_session.address_from, smtp_session.address_to->addr, smtp_session.subject, smtp_session.body);
     }
 
 #else
-    sprintf(content_buf, "FROM: <%s>\r\nTO: <%s>\r\nSUBJECT:%s\r\n\r\n%s\r\n\r\n",
+    sprintf(content_buf,
+            "FROM: <%s>\r\n"
+            "TO: <%s>\r\n"
+            "SUBJECT:%s\r\n\r\n"
+            "%s\r\n\r\n",
             smtp_session.address_from, smtp_session.address_to->addr, smtp_session.subject, smtp_session.body);
 #endif
+
     smtp_write((uint8_t *)content_buf, strlen(content_buf));
 
 #ifdef SMTP_CLIENT_USING_ATTACHMENT
     smtp_send_attachment();
-    smtp_clear_attachments();
 #endif
     if (smtp_send_data_with_response_check(SMTP_CMD_BODY_FINISHED, "250") != 0)
     {
-        LOG_E(">smtp send data content fail");
+        LOG_E("smtp send data content fail");
         smtp_close_connection();
         return -1;
     }
@@ -790,14 +829,14 @@ static int smtp_quit(void)
 {
     if (smtp_send_data_with_response_check(SMTP_CMD_QUIT, "221") != 0)
     {
-        LOG_E(">smtp quit fail");
+        LOG_E("smtp quit fail");
         smtp_close_connection();
         return -1;
     }
-    LOG_I(">smtp mail send sussess!");
+    LOG_I("smtp mail send sussess!");
     //关闭连接
     smtp_close_connection();
-    LOG_I(">close smtp connection!");
+    LOG_I("close smtp connection!");
     return 0;
 }
 
@@ -805,7 +844,6 @@ static int smtp_quit(void)
  * Name:    smtp_send
  * Brief:   真实的发送函数
  * Input:   
- *  @port_num:  发送邮件的端口号字符串
  * Output:  发送成功0，发送失败-1
  */
 static int smtp_send(void)
@@ -861,7 +899,7 @@ int smtp_send_mail(char *subject, char *body)
 {
     if (subject == NULL)
     {
-        LOG_E(">subject is null!");
+        LOG_E("subject is null!");
         return -1;
     }
     else
@@ -871,7 +909,7 @@ int smtp_send_mail(char *subject, char *body)
 
     if (body == NULL)
     {
-        LOG_E(">body is null!");
+        LOG_E("body is null!");
         return -1;
     }
     else
