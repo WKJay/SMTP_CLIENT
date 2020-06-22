@@ -1,10 +1,7 @@
 # SMTP_CLIENT 
 
-#### 最新版 V1.0.1
+#### 当前版本：V1.0.2
 
-`该版本属于最新测试版，拥有新增功能，对于新功能有需求的开发者可以选用最新版，最新版不能保证新功能的稳定性，若在使用过程中出现问题请联系该软件包的维护者或在GITHUB中提交ISSUE。谢谢支持`
-
-**本版本部分api在使用时与上一个版本有区别，若使用之前的版本，请参照下方对应使用说明**
 
 |版本|连接|
 |---|---|
@@ -14,11 +11,13 @@
 
 1. 支持设置多个收件人
 2. 支持删除指定收件人
+3. 支持附件发送（需要文件系统）
 
 ##### API变更
 
 1. 新版中需要调用 `smtp_add_receiver` 函数添加邮件的收件人，当使用多个收件人时只需多次调用该函数即可。
 2. 新版中 `smtp_send_mail` 函数去掉了发送者邮箱地址与接收者邮箱地址两个参数。发送者邮箱地址必须与服务器用户名相同，在设置服务器用户名后系统自动设置，接收者邮箱通过 `smtp_add_receiver` 进行设置。
+3. 新版加入 `smtp_add_attachment`与`smtp_clear_attachments`接口，用于添加与清空附件，附件可以添加多个，清空附件时会清空所有之前添加的附件。
 
 ------------------------------------------------------------------
 
@@ -50,6 +49,7 @@ RT-Thread online packages
             [ ] enable debug log information
                 smtp_client Options --->
                     [*] smtp client example
+                    [*] enable attachment
 
 ```
 
@@ -57,12 +57,13 @@ RT-Thread online packages
 - **use 465/587 port(encrypted port):** 使用加密端口，选中后会将 **mbedtls** 软件包加入编译，同时开启 465和587 两个加密端口的支持。
 - **enable debug log information：** 使能调试打印信息
 - **smtp client example：** 加入示例文件
+- **enable attachment：** 启用附件
 
 **注意：加入示例文件后不能直接下载使用，默认示例中缺少SMTP的个人参数，需要用户补全自己的用户名密码及接收方邮箱等信息！**
 
 #### 注意事项
 
- - 开启加密功能后会占用比较大的RAM空间，请根据自己使用的硬件平台决定是否选用加密。并且适当调大调用发送功能的线程的堆栈大小。（推荐大于4096）
+ - 开启加密功能后会占用比较大的RAM空间，请根据自己使用的硬件平台决定是否选用加密。并且适当调大调用发送功能的线程的堆栈大小。（推荐大于8192）
  - 有些邮件服务器不支持某个加密端口或者默认关闭，使用者需要确认自己选用的邮件服务器所支持的端口，并且确认已经打开邮件服务器的SMTP功能。
  - 若用户在使用的过程中出现加密有关的错误，请参照 RT-Thread **mbedtls** 软件包的说明文档。
 
@@ -74,6 +75,7 @@ RT-Thread online packages
  2. 调用 `smtp_set_server_addr` 函数设置服务器的地址及端口
  3. 调用 `smtp_set_auth` 函数设置服务器认证信息
  4. 调用 `smtp_add_receiver` 函数添加收件人地址
+ 5. 调用 `smtp_add_attachment` 函数添加附件（可选）
  5. 调用 `smtp_send_mail` 函数发送邮件
 
  #### API详解
@@ -187,6 +189,36 @@ int smtp_send_mail(char *subject, char *body);
 
 该函数为邮件发送函数，在用户设置好服务器的连接参数后，可以直接调用该函数进行邮件的发送。
 
+##### 7、添加附件
+
+```C
+
+int smtp_add_attachment(char *file_path, char *file_name)
+
+```
+
+|参数|说明|
+|---|---|
+|file_path|附件的文件路径|
+|file_name|附件名|
+
+|返回值|说明|
+|----|----|
+|0|添加成功|
+|-1|添加失败|
+
+用户可以自定义附件名，无需与文件路径中的文件名相同，在邮件中附件的名字总是为该函数中设置的附件名。
+
+##### 8、清空附件
+
+```C
+
+void smtp_clear_attachments(void)
+
+```
+
+调用该函数可以清除所有添加的附件。
+
  #### 宏配置说明
 
 若用户在使用过程中发现默认的配置无法满足自身的使用需求，用户可以进入 `smtp_client_private.h` 文件对相关宏定义参数进行配置：
@@ -204,6 +236,8 @@ int smtp_send_mail(char *subject, char *body);
 
 #### 使用例程
 
+加入例程后需要在命令行中输入 smtp_test 指令开启邮件发送，为了防止频繁发送，例程限制了最小发送间隔为30s，在发送成功后的30s内输入测试指令均无效。
+
 ```C
 
 /*************************************************
@@ -214,37 +248,47 @@ int smtp_send_mail(char *subject, char *body);
  History:
  1. Version:    V1.0.0
     Date:       2019-10-14
-    Author:     wangjunjie
+    Author:     WKJay
     Modify:     
 2. Version:     V1.0.1
     Date:       2019-10-14
-    Author:     wangjunjie
+    Author:     WKJay
     Modify:     添加多收件人功能
+    
+3. Version:    V1.0.2
+    Date:       2020-06-22
+    Author:     WKJay
+    Modify:     增加附件功能
 *************************************************/
 #include "smtp_client.h"
 #include "rtthread.h"
 
 //若使用TLS加密则需要更大的堆栈空间
 #ifdef SMTP_CLIENT_USING_TLS
-#define SMTP_CLIENT_THREAD_STACK_SIZE 4096
+#define SMTP_CLIENT_THREAD_STACK_SIZE 8192
 #else
-#define SMTP_CLIENT_THREAD_STACK_SIZE 2048
+#define SMTP_CLIENT_THREAD_STACK_SIZE 4096
 #endif
+
+#define DBG_ENABLE
+#define DBG_LEVEL 3
+#define DBG_COLOR
+#define DBG_SECTION_NAME "SMTP_EXAMPLE"
+#include "rtdbg.h"
 
 /*
  *邮件信息相关宏定义
  */
 //smtp 服务器域名
-#define SMTP_SERVER_ADDR "smtp.qq.com"
+#define SMTP_SERVER_ADDR "smtp.163.com"
 //smtp 服务器端口号
 #define SMTP_SERVER_PORT "25"
 //smtp 登录用户名
-#define SMTP_USERNAME    ""
+#define SMTP_USERNAME ""
 //smtp 登录密码（或凭证）
-#define SMTP_PASSWORD    ""
+#define SMTP_PASSWORD ""
 //邮件主题
-#define SMTP_SUBJECT     "SMTP TEST"
-
+#define SMTP_SUBJECT "SMTP TEST"
 
 //邮件内容
 char *content = "THIS IS SMTP TEST\r\n"
@@ -252,39 +296,48 @@ char *content = "THIS IS SMTP TEST\r\n"
                 "--------------------------------------\r\n"
                 "based on --->   RT-Thread\r\n"
                 "based on ---> SMTP_CLIENT\r\n";
-                
+
+uint8_t send_enable = 0;
+
 void smtp_thread(void *param)
 {
-    //手动延时等待网络初始化成功
-    rt_thread_delay(10000);
-
     //初始化smtp客户端
     smtp_client_init();
     //设置服务器地址
     smtp_set_server_addr(SMTP_SERVER_ADDR, ADDRESS_TYPE_DOMAIN, SMTP_SERVER_PORT);
     //设置服务器认证信息
     smtp_set_auth(SMTP_USERNAME, SMTP_PASSWORD);
-    
     //添加收件人1
-    smtp_add_receiver("abc@test.com");
-    //添加收件人2
-    smtp_add_receiver("def@test.com");
-    //添加收件人3
-    smtp_add_receiver("hij@test.com");
-    //删除收件人2
-    smtp_delete_receiver("def@test.com");
+    smtp_add_receiver("66666@sharklasers.com");
 
-    //发送邮件
-    rt_kprintf("\r\n[smtp]: O > start to send mail\r\n");
-    if (smtp_send_mail(SMTP_SUBJECT, content) == 0)
+    while (1)
     {
-        //发送成功
-        rt_kprintf("\r\n[smtp]: O > send mail success!\r\n");
-    }
-    else
-    {
-        //发送失败
-        rt_kprintf("\r\n[smtp]: X > send mail fail!\r\n");
+        if (send_enable)
+        {
+            smtp_add_attachment("/a.txt", "a.txt");
+            smtp_add_attachment("/b.txt", "b.txt");
+            //发送邮件
+            LOG_D("start to send mail");
+            if (smtp_send_mail(SMTP_SUBJECT, content) == 0)
+            {
+                //发送成功
+                LOG_I("send mail success!");
+            }
+            else
+            {
+                //发送失败
+                LOG_E("send mail fail!");
+            }
+            //清除附件
+            smtp_clear_attachments();
+            //防止频繁发送
+            rt_thread_mdelay(30000);
+            send_enable = 0;
+        }
+        else
+        {
+            rt_thread_mdelay(500);
+        }
     }
 }
 
@@ -301,7 +354,12 @@ int smtp_thread_entry(void)
 }
 INIT_APP_EXPORT(smtp_thread_entry);
 
-
+int smtp_test(uint8_t argc, char *argv[])
+{
+    send_enable = 1;
+    return 0;
+}
+MSH_CMD_EXPORT(smtp_test, smtp test);
 ```
 
 ## 联系方式&感谢

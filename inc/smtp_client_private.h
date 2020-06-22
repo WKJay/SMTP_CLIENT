@@ -17,10 +17,16 @@
 #include <tls_client.h>
 #endif
 
+#ifdef SMTP_CLIENT_USING_ATTACHMENT
+#include <dfs_posix.h>
+#endif
+
 #define SMTP_MAX_ADDR_LEN 100
 #define SMTP_MAX_AUTH_LEN 50
+#define SMTP_MAX_FILE_PATH_LEN 64
+#define SMTP_ATTACHMENT_MAX_NAME_LEN 32
 #define SMTP_SEND_CMD_MAX_LEN 100
-#define SMTP_SEND_DATA_HEAD_MAX_LENGTH 128
+#define SMTP_SEND_DATA_HEAD_MAX_LENGTH 256
 #define SMTP_SEND_DATA_MAX_LEN 512
 #define SMTP_RESPONSE_MAX_LEN 512
 
@@ -52,6 +58,14 @@ typedef struct _smtp_address_to
     struct _smtp_address_to *next;
 } smtp_address_to_t;
 
+//smtp附件链
+typedef struct _smtp_attachments
+{
+    char file_path[SMTP_MAX_FILE_PATH_LEN];
+    char file_name[SMTP_ATTACHMENT_MAX_NAME_LEN];
+    struct _smtp_attachments *next;
+} smtp_attachments_t;
+
 //smtp 会话结构
 typedef struct
 {
@@ -60,11 +74,11 @@ typedef struct
     //会话超时时间，如果时间为0，标志超时，则自动关闭连接
     uint16_t timer;
     //smtp服务器域名
-    const char *server_domain;
+    char *server_domain;
     //smtp服务器ip
-    const char *server_ip;
+    char *server_ip;
     //smtp服务器端口号
-    const char *server_port;
+    char *server_port;
     //用户名
     char username[SMTP_MAX_AUTH_LEN * 2];
     //密码(有些邮箱服务器需要的是用户凭据)
@@ -79,6 +93,9 @@ typedef struct
     char *body;
     //smtp连接句柄
     int conn_fd;
+#ifdef SMTP_CLIENT_USING_ATTACHMENT
+    smtp_attachments_t *attachments;
+#endif
 #ifdef SMTP_CLIENT_USING_TLS
     //tls会话
     MbedTLSSession *tls_session;
@@ -94,6 +111,7 @@ extern smtp_session_t smtp_session;
 #define SMTP_RESP_354 "354"
 #define SMTP_RESP_LOGIN_UNAME "VXNlcm5hbWU6"
 #define SMTP_RESP_LOGIN_PASS "UGFzc3dvcmQ6"
+#define SMTP_MAIL_BOUNDARY "smtp_client_boundary"
 
 #define SMTP_CMD_EHLO "EHLO DM11\r\n"
 #define SMTP_CMD_AUTHLOGIN "AUTH LOGIN\r\n"
@@ -112,7 +130,7 @@ extern smtp_session_t smtp_session;
 
 #ifdef SMTP_CLIENT_USING_TLS
 //向SSL/TLS中写入数据
-int smtp_mbedtls_client_write(MbedTLSSession *tls_session, char *buf);
+int smtp_mbedtls_client_write(MbedTLSSession *tls_session, uint8_t *buf, uint32_t len);
 //从 SSL/TLS 中读取数据
 int smtp_mbedtls_client_read(MbedTLSSession *tls_session, char *buf, size_t len);
 
