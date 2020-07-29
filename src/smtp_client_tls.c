@@ -228,13 +228,11 @@ int smtp_mbedtls_starttls(MbedTLSSession *tls_session)
     //证书验证
     result = mbedtls_ssl_get_verify_result(&tls_session->ssl);
     if (result != 0)
-    {
+    {     
+        LOG_E("verify peer certificate fail....");
         memset(tls_session->buffer, 0x00, tls_session->buffer_len);
         mbedtls_x509_crt_verify_info((char *)tls_session->buffer, tls_session->buffer_len, "  ! ", result);
-        LOG_E(">smtp mbedtls crt verify fail");
-        mbedtls_client_close(tls_session);
-        LOG_I(">MbedTLS connection close");
-        return -1;
+        LOG_E("verification info: %s", tls_session->buffer);
     }
     return result;
 }
