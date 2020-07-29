@@ -703,6 +703,7 @@ static int smtp_set_sender_receiver(void)
     return 0;
 }
 
+#ifdef SMTP_CLIENT_USING_ATTACHMENT
 /**
  * Name:    smtp_send_content
  * Brief:   smtp发送附件
@@ -761,6 +762,8 @@ static void smtp_send_attachment(void)
     if (attachments_cnt > 0)
         smtp_write((uint8_t *)("--" SMTP_MAIL_BOUNDARY "--\r\n"), strlen("--" SMTP_MAIL_BOUNDARY "--\r\n"));
 }
+
+#endif
 
 /**
  * Name:    smtp_send_content
