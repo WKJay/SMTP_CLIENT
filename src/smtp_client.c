@@ -43,7 +43,7 @@ smtp_session_t smtp_session;
  */
 int smtp_add_attachment(char *file_path, char *file_name)
 {
-    FILE *fp =  NULL;
+    FILE *fp = NULL;
     if (strlen(file_path) > SMTP_MAX_FILE_PATH_LEN)
     {
         LOG_E("attachment's file path too large");
@@ -703,6 +703,7 @@ static int smtp_set_sender_receiver(void)
     return 0;
 }
 
+#ifdef SMTP_CLIENT_USING_ATTACHMENT
 /**
  * Name:    smtp_send_content
  * Brief:   smtp发送附件
@@ -711,6 +712,7 @@ static int smtp_set_sender_receiver(void)
  */
 static void smtp_send_attachment(void)
 {
+    uint16_t attachments_cnt = 0;
     uint8_t attachment_buf[SMTP_SEND_DATA_MAX_LEN];
     smtp_attachments_t *cur_attr = smtp_session.attachments;
     while (cur_attr)
@@ -719,6 +721,14 @@ static void smtp_send_attachment(void)
         if (fp)
         {
             uint32_t read_size = 0;
+            if (attachments_cnt < SMTP_MAX_ATTACHMENTS)
+            {
+                attachments_cnt++;
+            }
+            else
+            {
+                break;
+            }
             //发送附件头
             rt_memset(attachment_buf, 0, sizeof(attachment_buf));
             sprintf((char *)attachment_buf,
@@ -748,8 +758,12 @@ static void smtp_send_attachment(void)
         }
         cur_attr = cur_attr->next;
     }
-    smtp_write((uint8_t *)("--" SMTP_MAIL_BOUNDARY "--\r\n"), strlen("--" SMTP_MAIL_BOUNDARY "--\r\n"));
+
+    if (attachments_cnt > 0)
+        smtp_write((uint8_t *)("--" SMTP_MAIL_BOUNDARY "--\r\n"), strlen("--" SMTP_MAIL_BOUNDARY "--\r\n"));
 }
+
+#endif
 
 /**
  * Name:    smtp_send_content
